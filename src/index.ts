@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
 import appointmentsRoutes from "./routes/appointments";
+import patientsRoutes from "./routes/patients";
+import professionalsRoutes from "./routes/professionals";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "./middleware/authMiddleware";
 
@@ -15,6 +17,8 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, service: "katu-backen
 
 app.use("/api/auth", authRoutes);
 app.use("/api/appointments", appointmentsRoutes);
+app.use("/api/patients", patientsRoutes);
+app.use("/api/professionals", professionalsRoutes);
 
 // Protected example: current user
 app.get("/api/me", requireAuth, async (req, res) => {
