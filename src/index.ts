@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
+import appointmentsRoutes from "./routes/appointments";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "./middleware/authMiddleware";
 
@@ -13,6 +14,7 @@ const prisma = new PrismaClient();
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "katu-backend" }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/appointments", appointmentsRoutes);
 
 // Protected example: current user
 app.get("/api/me", requireAuth, async (req, res) => {
