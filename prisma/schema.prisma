@@ -1,0 +1,124 @@
+// Prisma schema (Postgres)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  role          UserRole @default(PATIENT)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  patients      Patient[] 
+  professionals Professional?
+  refreshTokens RefreshToken[]
+}
+
+model Patient {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String   @unique
+  cpf        String?  @unique
+  birthDate  DateTime?
+  gender     String?
+  records    PatientRecord[]
+  createdAt  DateTime @default(now())
+}
+
+model Professional {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @unique
+  registry    String?
+  profession  String?
+  specialties String?
+  createdAt   DateTime @default(now())
+}
+
+model PatientRecord {
+  id             String   @id @default(uuid())
+  patient        Patient  @relation(fields: [patientId], references: [id])
+  patientId      String
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+  professionalId String?
+  clinicId       String?
+  type           String
+  date           DateTime @default(now())
+  notes          String?
+}
+
+model File {
+  id         String   @id @default(uuid())
+  ownerType  String
+  ownerId    String
+  filename   String
+  s3Key      String
+  mimetype   String
+  size       Int
+  uploadedBy String
+  createdAt  DateTime @default(now())
+}
+
+model Appointment {
+  id            String   @id @default(uuid())
+  clinicId      String?
+  professional  Professional? @relation(fields: [professionalId], references: [id])
+  professionalId String?
+  patient       Patient? @relation(fields: [patientId], references: [id])
+  patientId     String?
+  startAt       DateTime
+  endAt         DateTime
+  status        String
+  createdAt     DateTime @default(now())
+}
+
+model Procedure {
+  id          String @id @default(uuid())
+  code        String
+  description String
+  price       Float
+  tableSource String?
+}
+
+model Invoice {
+  id        String   @id @default(uuid())
+  ownerId   String
+  type      String
+  amount    Float
+  status    String
+  dueDate   DateTime?
+  paidAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  eventType  String
+  userId     String?
+  targetTable String?
+  targetId   String?
+  changesJson String?
+  createdAt  DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+enum UserRole {
+  PATIENT
+  PROFESSIONAL
+  ADMIN
+}
