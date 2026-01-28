@@ -23,9 +23,11 @@ app.use("/api/professionals", professionalsRoutes);
 /**
  * Demo UI page for quick manual testing.
  * - Login -> /api/me to get user id -> create patient/professional -> create appointment
+ *
+ * Exposed both at /demo (local) and /api/demo (routed through Traefik to backend).
  */
-app.get("/demo", (_req, res) => {
-  res.send(`<!doctype html>
+function demoHtml() {
+  return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -82,9 +84,9 @@ app.get("/demo", (_req, res) => {
     <input id="apptProfessionalId" type="text" placeholder="prof-1" />
     <label>Patient ID (leave empty to auto-link current user patient)</label>
     <input id="apptPatientId" type="text" placeholder="pat-1" />
-    <label>Start (UTC)</label>
+    <label>Start (local)</label>
     <input id="apptStart" type="datetime-local" />
-    <label>End (UTC)</label>
+    <label>End (local)</label>
     <input id="apptEnd" type="datetime-local" />
     <button id="btnCreateAppt">Create Appointment</button>
     <pre id="apptResult"></pre>
@@ -133,7 +135,6 @@ app.get("/demo", (_req, res) => {
 
   async function createPatient() {
     const id = document.getElementById('patientId').value || ('pat-' + Date.now());
-    // attempt to use current user id as userId when available
     const userId = me?.id || null;
     const payload = { id };
     if (userId) payload.userId = userId;
@@ -153,10 +154,8 @@ app.get("/demo", (_req, res) => {
     document.getElementById('professionalResult').innerText = JSON.stringify(json, null, 2);
   }
 
-  // helper to convert local-datetime to ISO string in UTC
   function localDatetimeToISOString(inputValue) {
     if (!inputValue) return null;
-    // inputValue is "YYYY-MM-DDTHH:MM"
     const dt = new Date(inputValue);
     return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString();
   }
@@ -183,7 +182,6 @@ app.get("/demo", (_req, res) => {
     document.getElementById('listResult').innerText = JSON.stringify(json, null, 2);
   }
 
-  // wire buttons
   document.getElementById('btnLogin').addEventListener('click', doLogin);
   document.getElementById('btnMe').addEventListener('click', refreshMe);
   document.getElementById('btnCreatePatient').addEventListener('click', createPatient);
@@ -194,8 +192,11 @@ app.get("/demo", (_req, res) => {
 })();
 </script>
 </body>
-</html>`);
-});
+</html>`;
+}
+
+app.get("/demo", (_req, res) => res.send(demoHtml()));
+app.get("/api/demo", (_req, res) => res.send(demoHtml()));
 
 // Basic error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
