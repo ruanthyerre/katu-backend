@@ -5,7 +5,6 @@ const prisma = new PrismaClient();
 
 export async function createPatient(req: Request, res: Response) {
   try {
-    // accept any fields; cast to any to avoid strict schema typing issues
     const data: any = req.body;
     const patient = await prisma.patient.create({ data });
     res.status(201).json(patient);
