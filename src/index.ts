@@ -20,16 +20,181 @@ app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/patients", patientsRoutes);
 app.use("/api/professionals", professionalsRoutes);
 
-// Protected example: current user
-app.get("/api/me", requireAuth, async (req, res) => {
-  const userId = (req as any).userId;
-  if (!userId) return res.status(401).json({ error: "unauthenticated" });
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, email: true, name: true, role: true },
-  });
-  if (!user) return res.status(404).json({ error: "not_found" });
-  res.json(user);
+/**
+ * Demo UI page for quick manual testing.
+ * - Login -> /api/me to get user id -> create patient/professional -> create appointment
+ */
+app.get("/demo", (_req, res) => {
+  res.send(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Katu Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 12px; }
+    fieldset { margin-bottom: 16px; }
+    input[type=text], input[type=password], input[type=datetime-local] { width: 100%; padding: 8px; box-sizing: border-box; margin-top:6px; }
+    button { padding: 8px 12px; margin-top: 8px; }
+    pre { background:#f6f8fa; padding:12px; overflow:auto; }
+    label { font-weight:600; }
+  </style>
+</head>
+<body>
+  <h1>Katu — Demo UI</h1>
+
+  <fieldset>
+    <legend>Login</legend>
+    <label>Email</label>
+    <input id="email" type="text" value="thyerrefilho@gmail.com" />
+    <label>Senha</label>
+    <input id="password" type="password" value="2009@Benha" />
+    <button id="btnLogin">Login</button>
+    <div id="loginResult"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Current User</legend>
+    <pre id="me">{ not logged in }</pre>
+    <button id="btnMe">Refresh /api/me</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Create Patient (auto-fills userId from /api/me)</legend>
+    <label>Patient ID</label>
+    <input id="patientId" type="text" placeholder="pat-1" />
+    <button id="btnCreatePatient">Create Patient</button>
+    <pre id="patientResult"></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>Create Professional</legend>
+    <label>Professional ID</label>
+    <input id="professionalId" type="text" placeholder="prof-2" />
+    <label>Profession</label>
+    <input id="professionalProfession" type="text" placeholder="GENERAL" />
+    <button id="btnCreateProfessional">Create Professional</button>
+    <pre id="professionalResult"></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>Create Appointment</legend>
+    <label>Professional ID</label>
+    <input id="apptProfessionalId" type="text" placeholder="prof-1" />
+    <label>Patient ID (leave empty to auto-link current user patient)</label>
+    <input id="apptPatientId" type="text" placeholder="pat-1" />
+    <label>Start (UTC)</label>
+    <input id="apptStart" type="datetime-local" />
+    <label>End (UTC)</label>
+    <input id="apptEnd" type="datetime-local" />
+    <button id="btnCreateAppt">Create Appointment</button>
+    <pre id="apptResult"></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>List Appointments for Professional on Date</legend>
+    <label>Professional ID</label>
+    <input id="listProf" type="text" placeholder="prof-1" />
+    <label>Date (YYYY-MM-DD)</label>
+    <input id="listDate" type="text" placeholder="2026-03-02" />
+    <button id="btnListAppts">List</button>
+    <pre id="listResult"></pre>
+  </fieldset>
+
+<script>
+(function(){
+  let token = null;
+  let me = null;
+
+  function authHeaders() {
+    return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const json = await res.json();
+    if (res.ok) {
+      token = json.accessToken;
+      document.getElementById('loginResult').innerText = 'Login ok — token stored (in memory)';
+      await refreshMe();
+    } else {
+      document.getElementById('loginResult').innerText = 'Login error: ' + JSON.stringify(json);
+    }
+  }
+
+  async function refreshMe() {
+    const res = await fetch('/api/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    const json = await res.json();
+    me = res.ok ? json : null;
+    document.getElementById('me').innerText = JSON.stringify(json, null, 2);
+    return json;
+  }
+
+  async function createPatient() {
+    const id = document.getElementById('patientId').value || ('pat-' + Date.now());
+    // attempt to use current user id as userId when available
+    const userId = me?.id || null;
+    const payload = { id };
+    if (userId) payload.userId = userId;
+    const res = await fetch('/api/patients', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const json = await res.json();
+    document.getElementById('patientResult').innerText = JSON.stringify(json, null, 2);
+  }
+
+  async function createProfessional() {
+    const id = document.getElementById('professionalId').value || ('prof-' + Date.now());
+    const profession = document.getElementById('professionalProfession').value || 'GENERAL';
+    const userId = me?.id || null;
+    const payload = { id, profession };
+    if (userId) payload.userId = userId;
+    const res = await fetch('/api/professionals', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const json = await res.json();
+    document.getElementById('professionalResult').innerText = JSON.stringify(json, null, 2);
+  }
+
+  // helper to convert local-datetime to ISO string in UTC
+  function localDatetimeToISOString(inputValue) {
+    if (!inputValue) return null;
+    // inputValue is "YYYY-MM-DDTHH:MM"
+    const dt = new Date(inputValue);
+    return new Date(dt.getTime() - dt.getTimezoneOffset()*60000).toISOString();
+  }
+
+  async function createAppt() {
+    const professionalId = document.getElementById('apptProfessionalId').value || null;
+    const patientId = document.getElementById('apptPatientId').value || null;
+    const startLocal = document.getElementById('apptStart').value;
+    const endLocal = document.getElementById('apptEnd').value;
+    const startAt = localDatetimeToISOString(startLocal);
+    const endAt = localDatetimeToISOString(endLocal);
+    const payload = { professionalId, patientId, startAt, endAt };
+    const res = await fetch('/api/appointments', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const json = await res.json();
+    document.getElementById('apptResult').innerText = JSON.stringify(json, null, 2);
+  }
+
+  async function listAppts() {
+    const professionalId = document.getElementById('listProf').value;
+    const date = document.getElementById('listDate').value;
+    const url = '/api/appointments?professionalId=' + encodeURIComponent(professionalId) + '&date=' + encodeURIComponent(date);
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+    const json = await res.json();
+    document.getElementById('listResult').innerText = JSON.stringify(json, null, 2);
+  }
+
+  // wire buttons
+  document.getElementById('btnLogin').addEventListener('click', doLogin);
+  document.getElementById('btnMe').addEventListener('click', refreshMe);
+  document.getElementById('btnCreatePatient').addEventListener('click', createPatient);
+  document.getElementById('btnCreateProfessional').addEventListener('click', createProfessional);
+  document.getElementById('btnCreateAppt').addEventListener('click', createAppt);
+  document.getElementById('btnListAppts').addEventListener('click', listAppts);
+
+})();
+</script>
+</body>
+</html>`);
 });
 
 // Basic error handler
