@@ -1,4 +1,3 @@
-```typescript name=src/controllers/patientController.ts url=https://github.com/ruanthyerre/katu-backend/blob/main/src/controllers/patientController.ts
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 
