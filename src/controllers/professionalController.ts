@@ -16,7 +16,29 @@ export async function createProfessional(req: Request, res: Response) {
 
 export async function listProfessionals(req: Request, res: Response) {
   try {
-    const items = await prisma.professional.findMany({ orderBy: { createdAt: "desc" } as any });
+    const q = (req.query.query as string) || "";
+    const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) || "20", 10)));
+    const offset = Math.max(0, parseInt((req.query.offset as string) || "0", 10));
+
+    const where: any = {};
+    if (q && q.length >= 1) {
+      where.OR = [
+        { id: { contains: q, mode: "insensitive" } },
+        { registry: { contains: q, mode: "insensitive" } },
+        { profession: { contains: q, mode: "insensitive" } },
+        { user: { email: { contains: q, mode: "insensitive" } } },
+        { user: { name: { contains: q, mode: "insensitive" } } },
+      ];
+    }
+
+    const items = await prisma.professional.findMany({
+      where,
+      include: { user: { select: { id: true, email: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    });
+
     res.json(items);
   } catch (err) {
     console.error(err);
@@ -27,7 +49,7 @@ export async function listProfessionals(req: Request, res: Response) {
 export async function getProfessional(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const p = await prisma.professional.findUnique({ where: { id } });
+    const p = await prisma.professional.findUnique({ where: { id }, include: { user: { select: { id: true, email: true, name: true } } } });
     if (!p) return res.status(404).json({ error: "not_found" });
     res.json(p);
   } catch (err) {
