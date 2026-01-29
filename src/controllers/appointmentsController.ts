@@ -6,8 +6,7 @@ const prisma = new PrismaClient();
 /**
  * Helper: check overlap for given professionalId or patientId.
  * Returns true if there is a conflicting appointment (excluding optional excludeId).
- *
- * NOTE: now ignores appointments with status = "CANCELLED".
+ * Ignores appointments with status = "CANCELLED".
  */
 async function hasOverlap({ professionalId, patientId, startAt, endAt, excludeId }: {
   professionalId?: string | null;
@@ -67,8 +66,9 @@ async function validateForeignKeys(professionalId?: string | null, patientId?: s
 
 /**
  * Create appointment
- * - If client doesn't send patientId, attempt to link by authenticated user: if the
- *   user has a Patient record, we set patientId automatically.
+ * - If client doesn't send patientId, attempt to link by authenticated user:
+ *   - if the user has an existing Patient record, use it
+ *   - otherwise, create a Patient record automatically and use it
  */
 export async function createAppointment(req: Request, res: Response) {
   try {
@@ -83,15 +83,21 @@ export async function createAppointment(req: Request, res: Response) {
 
     if (!startAt || !endAt) return res.status(400).json({ error: "start_end_required" });
 
-    // determine effective patientId: incoming or auto-linked from authenticated user
+    // determine effective patientId: incoming or auto-linked from authenticated user (and auto-create)
     let patientId: string | null = incomingPatientId ?? null;
     const userId = (req as any).userId;
     if (!patientId && userId) {
-      const patient = await prisma.patient.findFirst({ where: { userId } });
+      // try to find existing patient
+      let patient = await prisma.patient.findFirst({ where: { userId } });
+      if (!patient) {
+        // auto-create patient
+        const newId = `pat-${Date.now()}`;
+        patient = await prisma.patient.create({ data: { id: newId, userId } as any });
+      }
       if (patient) patientId = patient.id;
     }
 
-    // validate foreign keys first
+    // validate foreign keys first (if provided)
     await validateForeignKeys(professionalId, patientId);
 
     // availability check
@@ -115,6 +121,8 @@ export async function createAppointment(req: Request, res: Response) {
     res.status(500).json({ error: "internal_error" });
   }
 }
+
+/* keep other handlers (list/get/update/delete) unchanged — re-use existing implementations */
 
 export async function listAppointments(req: Request, res: Response) {
   try {
